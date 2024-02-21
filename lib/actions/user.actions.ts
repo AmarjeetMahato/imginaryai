@@ -2,17 +2,19 @@
 
 import { revalidatePath } from "next/cache";
 
-import User from "../database/models/user.model";
-import { connectedToDatabase } from "../database/mongoose";
+import prisma from "@/lib/database"
 import { handleError } from "../utils";
 
 // CREATE
 export async function createUser(user: CreateUserParams) {
   try {
-    await connectedToDatabase();
+   
 
-    const newUser = await User.create(user);
-
+    const newUser = await prisma.user.create({
+      data:user
+    });
+     console.log(newUser);
+     
     return JSON.parse(JSON.stringify(newUser));
   } catch (error) {
     handleError(error);
@@ -22,9 +24,12 @@ export async function createUser(user: CreateUserParams) {
 // READ
 export async function getUserById(userId: string) {
   try {
-    await connectedToDatabase();
-
-    const user = await User.findOne({ clerkId: userId });
+  
+    const user = await prisma.user.findUnique({
+      where: {
+        clerkId: userId,
+      },
+    });
 
     if (!user) throw new Error("User not found");
 
@@ -37,14 +42,16 @@ export async function getUserById(userId: string) {
 // UPDATE
 export async function updateUser(clerkId: string, user: UpdateUserParams) {
   try {
-    await connectedToDatabase();
-
-    const updatedUser = await User.findOneAndUpdate({ clerkId }, user, {
-      new: true,
+ 
+    const updatedUser = await prisma.user.update({
+      where: {
+        clerkId: clerkId,
+      },
+      data: user,
     });
 
     if (!updatedUser) throw new Error("User update failed");
-    
+
     return JSON.parse(JSON.stringify(updatedUser));
   } catch (error) {
     handleError(error);
@@ -54,20 +61,25 @@ export async function updateUser(clerkId: string, user: UpdateUserParams) {
 // DELETE
 export async function deleteUser(clerkId: string) {
   try {
-    await connectedToDatabase();
-
     // Find user to delete
-    const userToDelete = await User.findOne({ clerkId });
+    const userToDelete = await prisma.user.findUnique({
+      where: {
+        clerkId: clerkId,
+      },
+    });
 
     if (!userToDelete) {
       throw new Error("User not found");
     }
 
     // Delete user
-    const deletedUser = await User.findByIdAndDelete(userToDelete._id);
-    revalidatePath("/");
+    const deletedUser = await prisma.user.delete({
+      where: {
+        id: userToDelete.id,
+      },
+    });
 
-    return deletedUser ? JSON.parse(JSON.stringify(deletedUser)) : null;
+    return deletedUser;
   } catch (error) {
     handleError(error);
   }
@@ -76,17 +88,22 @@ export async function deleteUser(clerkId: string) {
 // USE CREDITS
 export async function updateCredits(userId: string, creditFee: number) {
   try {
-    await connectedToDatabase();
+    const updatedUser = await prisma.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        creditBalance: {
+          increment: creditFee,
+        },
+      },
+    });
 
-    const updatedUserCredits = await User.findOneAndUpdate(
-      { _id: userId },
-      { $inc: { creditBalance: creditFee }},
-      { new: true }
-    )
+    if (!updatedUser) {
+      throw new Error("User credits update failed");
+    }
 
-    if(!updatedUserCredits) throw new Error("User credits update failed");
-
-    return JSON.parse(JSON.stringify(updatedUserCredits));
+    return updatedUser;
   } catch (error) {
     handleError(error);
   }
